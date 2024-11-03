@@ -82,6 +82,15 @@ target/
 profile_default/
 ipython_config.py
 
+#vi ignores
+*.swp
+*.un~
+*.py~
+.gitignore~
+
+#classified files
+*.csv
+
 # pyenv
 #   For a library or package, you might want to ignore these files since the code is
 #   intended to run in multiple environments; otherwise, check them in:

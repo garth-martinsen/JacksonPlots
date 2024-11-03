@@ -13,8 +13,8 @@ Input_Entry = namedtuple("Input_Entry", "date, id, name, future, units, unitVal_
 Output_Entry = namedtuple("Output_Entry", "date, id, name, first_value, value, growth, total, alloc")
 # populated for dict  self.tots_by_date after first_val and first_tot are computed.
 Tot_Entry =namedtuple("Tot_Entry", "date, first_tot, current_tot, tot_growth")  
-Plot_Types =namedtuple("Plot_Types", "values_by_date, totals_by_date, fund_growth_by_date, totals_growth_by_date, allocations_by_date ")
-plot_types = Plot_Types("vd","td", "vgd","tgd", "ad")
+Plot_Types =namedtuple("Plot_Types", "values_by_date, fund_growth_by_date, totals_by_date, allocations_by_date ")
+plot_types = Plot_Types("vd","vgd", "td", "ad")
   
 #from tuples import Input_Entry, Output_entry, Tot_Entry, plot_types
 
