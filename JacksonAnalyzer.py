@@ -238,6 +238,30 @@ class JacksonAnalyzer:
         plt.show()
         fig.savefig("Totals.png")
     
+
+    #TODO: Debug stack_plot_allocations
+    def stack_plot_allocations(self):
+        alloc_lst= []
+        lable_lst=[]
+        # build array rows = ids cols: alloc by date.
+        for i in self.ids:
+            if i != 999:
+                lable_lst.append(str(i))
+                alloc_lst.append(self.nparrays_by_id[i]['alloc'])
+        alloc_array = np.array(alloc_lst)
+        x= np.array((self.dates))
+        start = self.dates[0]
+        end= self.dates[-1]
+        ax, fig=plt.figure()
+        # use one of the two below to call stackplot...
+        plt.stackplot( x, alloc_array, labels=(lable_lst)) #, colors=None, hatch=None, baseline='zero', data=None, **kwargs)
+        #ax.stackplot(year, population_by_continent.values(),
+        #labels=population_by_continent.keys(), alpha=0.8)
+        ax.legend(loc='upper left', reverse=True)
+        ax.set_title('Jackson fund allocations')
+        ax.set_xlabel('date')
+        ax.set_ylabel('% of Total')
+	
 '''
 ------------------------------keep below---------------
     def plot(self, name):
