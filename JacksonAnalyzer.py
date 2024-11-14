@@ -14,6 +14,10 @@ import numpy as np
 # Convert list<str(date)> to list<datetime.date>
 
 #TODO: 10/28/2024: Add the actual plotting ...
+#TODO: 11/12/2024: Refactor to reduce lines of code....
+
+
+#numpy fields of processed  data used for analysis and plotting
 dt_j=dt_j=np.dtype([
              ('date', np.dtype(str),10),
              ('id', np.dtype(int)),
@@ -21,14 +25,17 @@ dt_j=dt_j=np.dtype([
              ('value', np.dtype(float)),
              ('growth', np.dtype(float)),
              ('alloc', np.dtype(float)) ])
+
+
+#TODO: 11/12/2024: Remove constructor arg data, and just hard code it to be all.csv Done: lines: 33, 38
 class JacksonAnalyzer:
     '''Reads all.csv, Stores Normalizers, extracts Lists for Plots.'''
-    def __init__(self, data ):
+    def __init__(self):
         today = datetime.date.today()
         self._run_date = str(today)
         self.first_date = None    #computed in self.read_data(), after all data is read in.
         self.first_tot = None   # updated after summing all accounts in first date.
-        self.input_file = f'/Users/garth/JacksonStocks/{data}'
+        self.input_file = f'/Users/garth/JacksonStocks/all.csv'
         self.inputs_by_date = dict() #key: date  value: List<Entry>	
         self.firsts_by_id = dict() #key: id  value: value_USD
         self.tots_by_date = dict()  #key: date value:List<Entry>
@@ -53,6 +60,19 @@ class JacksonAnalyzer:
     def iso_date(self, str_date):
         return datetime.datetime.strptime(str_date,"%m/%d/%Y").date()
 
+    def day_of_year(self, str_date):
+        '''Uses last digit in str_date = yr Converts str_date to iso_date,get day-of-yr (doy) fract=  (doy/365) => 
+        round (yr+fract) to 2 decimal places. eg 11/11/2024 => 4.87 and 1/5/2025 => 5.01. This unclutters x_axis in plots by date'''  
+        yr=str_date[-1:]
+        idate=self.iso_date(str_date)
+        doy = idate.timetuple().tm_yday
+        return yr,round(int(yr)+doy/365,2)
+        
+
+    def process(self):
+        self.firsts()
+        self.outputs()
+        self.store_nparrays_by_id()
        
     def read_data(self):
         '''Returns None. Reads in all.csv and stores them in input_by_date dict if they have balance > 0.00 key:date value:Entry'''
@@ -71,10 +91,12 @@ class JacksonAnalyzer:
                     tot = None
                     fract = None
                     growth = None
+                    #TODO: Change so that dict values are dt_j tuples. This will reduce the number dicts needed
                     # if theId is in dict,return its list else return empty list, append entry to list and update dict.
                     # returns a list, either existing or empty
                     if val > 0.0:
                         flist = self.inputs_by_date.get(date, []) 
+                        # change: Do not use namedtuple, only need the dt_j values and the tuple representing them...
                         flist.append( Input_Entry(date, theId, row[1], row[3], row[4], row[5], row[6], val))
                         self.inputs_by_date[date]=flist     # update dict with updated list.
                         line_count += 1
@@ -135,15 +157,14 @@ class JacksonAnalyzer:
         # store all date strings in self.dates.
         for dt in self.tots_by_date.keys():
             self.dates.append(dt)           # now contains all dates in str form.
-
+#TODO: Fix: id is always 999, needs to show real fund_id not 999. Done! There are 9 groups and each shows it id on every line.
     def show_fund(self, anId ):
         name= self.output_by_id[anId][0].name
         print ("Fund: ", anId, name)
-        print( "---------------------------")
+        print( "---------------------------------------------")
+        print('id, date,     first,  value,  growth, jtotal, alloc')
         for n in self.output_by_id[anId]:
-            print(n.date, n.first_value, n.value, n.growth, n.total, n.alloc)
-
-        #TODO:Dates are too crowded for x-axis. Try using mm-dd and put yyyy in Title or somewhere else.
+            print(n.id, n.date, n.first_value, n.value, n.growth, n.total, n.alloc)
 
     def show_all_funds(self):
         ids = list(self.output_by_id.keys())
@@ -152,9 +173,76 @@ class JacksonAnalyzer:
             self.show_fund(i)
 
 
+
+
+    #TODO:Dates are too crowded for x-axis. Try using int(yyyy[-1]) and add day-of-year/365 and round to 2 decimal places eg: 4.83
+    #TODO: Show range of dates in title. Done 
+    def store_nparrays_by_id(self):
+        '''Process: iterate thru ids and get list<id> using: lst_109=ja.output_by_id[109];iterate thru lst_109 creating list<tuple>,
+        list_t_109, where tupleis (date,id,name,value, growth, alloc); then create array_109= np.array(list_t_109,dt_j); store the 
+        nparray in self.nparrays_by_id for later use.  later, extract arrays for plotting by :nparray = 
+        self.nparrays_by_id[anId]['x_name'] or['y_name']. On x axis, dates shown like: 4.83: 2024 doy/365''' 
+        #self.nparrays_by_id={} created in constructor...
+        #TODO: use day of year, doy for dates in plots...Done
+        for i in self.ids:
+           t_list=[]
+           for e in self.output_by_id[i]:
+               yr,doy= self.day_of_year(e.date)
+               t_list.append((doy, e.id, e.name, e.value, e.growth, e.alloc))
+           nparray = np.array(t_list, dt_j)
+           self.nparrays_by_id[i]=nparray
+           
+    #TODO: Change so that subplots:331-339 are used; show date-range in title: Done.ln: 215-217, 223, 225
+    def plot_by_id(self, subplots, x_name, y_name):
+        '''There are 9 ids, with last being 999 (jackson). Arg subplots is 331(3x3) Each id subplot increments by 1.
+        Title includes id, plot_type, date range'''
+        fig=plt.figure()
+        subplot=subplots       #first subplot in series.            
+        start = self.dates[0]
+        end= self.dates[-1]
+
+        for anId in self.ids:
+            nparray = self.nparrays_by_id[anId]
+            x= nparray[x_name]
+            y = nparray[y_name]
+            plt.subplot(subplot)
+            plt.plot(x, y)
+            plt.title(f'{str(anId)} {y_name} from {start} to {end}')
+            plt.grid(True)
+            subplot +=1
+        plt.show()
+        fig.savefig(f"Fund_{y_name}.png")
+
+
+    def plot_totals_with_growth(self, subplots):
+        '''Two plots: 1)totals by date, and 2)total_growths by date '''
+        print(f"Called plot_totals_with_growth({subplots}) The two subplots will be totals_by_date:{subplots}, total_growth_by_date: {subplots +2}.")
+        start = self.dates[0]
+        end= self.dates[-1]
+        fig=plt.figure()
+        nparray = self.nparrays_by_id[999]
+        x = nparray['date']
+        y = nparray['value']
+        plt.subplot(subplots)
+        plt.plot(x,y)
+        plt.title(f'999: Jackson Totals from {start} to {end}')
+        plt.grid(True)
+
+        # plot tot_growth by date.
+        y = nparray['growth']
+        plt.subplot(subplots +2)
+        plt.plot(x,y)
+        plt.title(f'999: Jackson Totals_Growth from {start} to {end}')
+        plt.grid(True)
+
+        plt.show()
+        fig.savefig("Totals.png")
+    
+'''
+------------------------------keep below---------------
     def plot(self, name):
-        '''calls functions with two lists for plotting(xarray, yarray). xarray will usually be dates which have been converted 
-        from list<str> to list<datetime.date>  name:plot_type is one of: [vd, td, tgd, ad ]. see: tuples.Plot_Type'''
+        comment: calls functions with two lists for plotting(xarray, yarray). xarray will usually be dates which have been converted 
+        from list<str> to list<datetime.date>  name:plot_type is one of: [vd, td, tgd, ad ]. see: tuples.Plot_Type
         match name:
 
             case 'vd':    #fund value by date
@@ -170,97 +258,6 @@ class JacksonAnalyzer:
                 print('Error: ',name, '  is not a valid plot_type. should be one of: ',values)
 
 
-    def store_nparrays_by_id(self):
-        '''Process: iterate thru ids and get list<id> using: lst_109=ja.output_by_id[109];iterate thru lst_109 creating list<tuple>,
-        list_t_109, where tupleis (date,id,name,value, growth, alloc); then create array_109= np.array(list_t_109,dt_j); store the 
-        nparray in self.nparrays_by_id for later use.  later, extract arrays for plotting by :nparray = 
-        self.nparrays_by_id[anId]['x_name'] or['y_name'] '''
-        #self.nparrays_by_id={} created in constructor...
-        for i in self.ids:
-           t_list=[]
-           for e in self.output_by_id[i]:
-               t_list.append((e.date, e.id, e.name, e.value, e.growth, e.alloc))
-           nparray = np.array(t_list, dt_j)
-           self.nparrays_by_id[i]=nparray
-           
-    def plot_array(self, rows, cols, x_name, y_name):
-        fig, axs = plt.subplots(rows,cols,layout='constrained')
-        k=0
-        for i in self.ids:
-            ax = axs[k//rows, k%cols]
-            self.plot(i,ax, x_name, y_name)
-            k+=1
-
-
-    def plot(self, anId, ax, x_name, y_name):
-        nparray = self.nparrays_by_id[anId]
-        x= nparray[x_name]
-        y = nparray[y_name]
-        plt.plot(x,y)
-        ax.set(xlabel=x_name, ylabel=y_name, title=f'{y_name}:{anId}')
-        ax.grid()
-        plt.show()
-
-    def plot_fund_values(self, rows,cols):
-        print(f"called  plot_values() with {rows} rows and {cols} columns") 
-        fig, axs = plt.subplots(rows,cols,layout='constrained')
-        k =0
-        for theId in self.ids:
-            ax = axs[k//3, k%3]
-            x,y = self.get_lists(self.output_by_id[theId], 0, 4)
-            x = self.get_plotting_dates(x)
-            name=self.output_by_id[theId][0].name
-            print("list sizes x:", len(x), " y: ", len(y))
-            ax.plot(x,y)
-            ax.set(xlabel='date', ylabel='value($)', title=f'{name}:{theId}')
-            ax.grid()
-            k+=1
-        fig.savefig("Values.png")
-        plt.show()
-      
-        
-
-
-    def plot_fund_growths(self, rows, cols):
-        ''' Nine Plots: grow by date for 9 ids, 999 being the last id.'''
-        print(f"Called plot_growths() with {rows} rows and {cols} columns")
-        fig, axs = plt.subplots(rows,cols,layout='constrained')
-        k =0
-        for theId in self.ids:
-                ax = axs[k//3, k%3]
-                x,y = self.get_lists(self.output_by_id[theId], 0, 5)
-                name=self.output_by_id[theId][0].name
-                ax.plot(x,y)
-                ax.set(xlabel='date', ylabel='fund_growth(%)', title=f'{name}:{theId}')
-                ax.grid()
-                k+=1
-        fig.savefig("FundGrowth.png")
-        plt.show()
-
-    def plot_totals_with_growth(self, rows, cols):
-        '''Two plots: 1)totals by date, and 2)total_growths by date '''
-        print(f"Called plot_totals() with {rows} rows and {cols} columns. 1)totals by date, 2) total_growth by date.")
-        k =0
-        for theId in self.ids:
-            ax = axs[k//2, k%2]
-            x,y = self.get_lists(self.tots_by_date[thedate], 0, 5)
-            name=self.output_by_id[theId][0].name
-            ax.plot(dates,growths)
-            ax.set(xlabel='date', ylabel='fund_growth(%)', title=f'{name}:{id}')
-            ax.grid()
-            k+=1
-        fig.savefig("Totals.png")
-        plt.show()
-    
-
-    def plot_fund_allocations(self, rows,cols):
-        '''One Plot: with a line for each of the 8 funds ids. The allocations for each fund will change over dates'''
-        print(f"Called plot_fund_allocations() with {rows} rows and {cols} columns. Multi-line: one line for each id. alloc by date.")
-        # TODO: Finish plot_fund_allocations(...) method.
-        # only need one date array, reuse it for each id line of dots. each marker represents the alloc(id) . Need a y array for ea id.
-        # create dict: attribs_by_id. key:date value: list<(id,Entry_)>
-        # ids=[109, 115, 123, 145, 222, 365, 690, 713, 999]
-        # when I enter an id, I want to return two arrays: dates and allocs.
 
         markers_by_id = dict()
         markers_by_id[109]="<"
@@ -271,44 +268,9 @@ class JacksonAnalyzer:
         markers_by_id[365]="2"
         markers_by_id[690]="3"
         markers_by_id[713]="4"
-        print(markers_by_id)
-        
-        fig, ax = plt.subplots()
+        print(markers_by_id )
 
-        #load x,y into dict, attrib_by_id_date, given (id,date)
-        for k, v in self.output_by_id.items():
-            if k != 999:
-                dts=[]
-                allocs=[]
-                for l in v:
-                    tup=(k,l.date)
-                    vtup = self.attrib_by_id_date.get(tup,())
-                    dts.append(l.date[:5])
-                    allocs.append(l.alloc)
-                    vtup=(dts,allocs)
-                    self.attrib_by_id_date[tup]=vtup
 
-        ax.set(xlabel='dates', ylabel='allocations (%)',title='Allocations by id, date (2024-2025)')
-        labels = self.ids
-        for i in self.ids:
-            if i != 999:
-                for dt in self.dates:
-                    x.clear()
-                    y.clear()
-                    x=self.attrib_by_id_date[(i,dt)][0]
-                    y=self.attrib_by_id_date[(i,dt)][1]
-                    print("x: ", x, "y: ", y)
-                    ax.stackplot(x, y, labels)
-                    ax.grid()
-        fig.savefig("allocations.png")
-        plt.show()
-
-    def fields_for_plots(self):
-        for i,o in ja.output_by_id.items():
-            if i != 999:                                  #exclude any entries for jackson id:999
-                for l in o:
-                    print(l.date, l.id, l.name, l.value, l.growth, l.alloc)
-'''
 StackPlot:
 Axes.stackplot(x, *args, labels=(), colors=None, hatch=None, baseline='zero', data=None, **kwargs)[source]
 
@@ -335,7 +297,4 @@ for i,o in ja.output_by_id.items():
 ...             lst= id_alloc_by_date.get(l.date,[])  # get list to hold tuples, empty or in-progress list.
 ...             lst.append( ( l.id, l.alloc) )        # add the tuple for date (l.date).
 ...             id_alloc_by_date[l.date]=lst
-
-
 '''
-
