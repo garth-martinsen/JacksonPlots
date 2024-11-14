@@ -252,8 +252,8 @@ class JacksonAnalyzer:
         x= np.array((self.dates))
         start = self.dates[0]
         end= self.dates[-1]
-        ax, fig=plt.figure()
-        # use one of the two below to call stackplot...
+        fig, ax = plt.subplots()
+        # use one of the three below to call stackplot...
         plt.stackplot( x, alloc_array, labels=(lable_lst)) #, colors=None, hatch=None, baseline='zero', data=None, **kwargs)
         #ax.stackplot(year, population_by_continent.values(),
         #labels=population_by_continent.keys(), alpha=0.8)
@@ -261,6 +261,7 @@ class JacksonAnalyzer:
         ax.set_title('Jackson fund allocations')
         ax.set_xlabel('date')
         ax.set_ylabel('% of Total')
+        plt.show()
 	
 '''
 ------------------------------keep below---------------
