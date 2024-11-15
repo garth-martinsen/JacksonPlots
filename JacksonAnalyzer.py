@@ -249,19 +249,20 @@ class JacksonAnalyzer:
                 lable_lst.append(str(i))
                 alloc_lst.append(self.nparrays_by_id[i]['alloc'])
         alloc_array = np.array(alloc_lst)
-        x= np.array((self.dates))
         start = self.dates[0]
         end= self.dates[-1]
+        theDates=[]
+        for dt in self.dates:
+            theDates.append( self.day_of_year(dt)[1])
+        x = np.array((theDates))
         fig, ax = plt.subplots()
-        # use one of the three below to call stackplot...
-        plt.stackplot( x, alloc_array, labels=(lable_lst)) #, colors=None, hatch=None, baseline='zero', data=None, **kwargs)
-        #ax.stackplot(year, population_by_continent.values(),
-        #labels=population_by_continent.keys(), alpha=0.8)
-        ax.legend(loc='upper left', reverse=True)
-        ax.set_title('Jackson fund allocations')
+        plt.stackplot( x, alloc_array, labels=(lable_lst))
+        ax.legend(loc='lower center', reverse=True)
+        ax.set_title(f'Jackson fund allocations from {start} to {end}')
         ax.set_xlabel('date')
         ax.set_ylabel('% of Total')
         plt.show()
+        fig.savefig("Allocations.png")
 	
 '''
 ------------------------------keep below---------------
